@@ -1,0 +1,11 @@
+# binary file
+pm-kyc-service*
+
+# beego file
+lastupdate.tmp
+
+# auto generated documentation folder
+swagger
+
+# command based generated router endpoints
+routers/commentsRouter*
