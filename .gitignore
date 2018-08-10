@@ -9,3 +9,6 @@ swagger
 
 # command based generated router endpoints
 routers/commentsRouter*
+
+# dependencies
+vendor
