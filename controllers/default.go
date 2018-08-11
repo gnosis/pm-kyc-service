@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"github.com/astaxie/beego"
+	"github.com/ethereum/go-ethereum/crypto"
+	"encoding/hex"
 )
 
 // Operations about users
@@ -13,13 +15,16 @@ type json_struct struct {
 	Hello string `json:"hello"`
 }
 
+
 // @Title Get User
 // @Description Retrieves user
 // @Success 200
 // @Failure 403 body is empty
 // @router /users/:address [get]
 func (controller *UserController) Get() {
-	m := json_struct{controller.Ctx.Input.Param(":address")}
+	var hashed_message []byte = crypto.Keccak256([]byte(controller.Ctx.Input.Param(":address")))
+	var hex_string string = hex.EncodeToString(hashed_message)
+	m := json_struct{hex_string}
 	controller.Data["json"] = &m
 	controller.ServeJSON()
 }
