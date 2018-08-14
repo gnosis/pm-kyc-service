@@ -11,7 +11,7 @@ dep ensure -v
 # Fix to C bindings for secp256k1
 go get github.com/ethereum/go-ethereum
 cp -r \
-  "${GOPATH}/src/github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1" \
+  "${GOPATH:-$HOME/go}/src/github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1" \
   "vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/"
 
 # Use beego cli for easier development
@@ -25,6 +25,6 @@ bee run -downdoc=true -gendoc=true
 ```
 
 ## Test
-````
+```
 go test tests/default_test.go -v
 ```

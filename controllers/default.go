@@ -4,6 +4,8 @@ import (
 	"github.com/astaxie/beego"
 	"github.com/ethereum/go-ethereum/crypto"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"github.com/astaxie/beego/validation"
 	"github.com/astaxie/beego/logs"
 )
@@ -11,6 +13,10 @@ import (
 // Operations about users
 type UserController struct {
 	beego.Controller
+}
+
+type UserPost struct {
+	Email string `json:"email"`
 }
 
 type json_struct struct {
@@ -48,8 +54,13 @@ func (controller *UserController) Post() {
 
 	// User doesn't exist, so we validate all params are compliant with the domain
 	// Validate email
-	logs.Info(controller.Ctx.Input.RequestBody)
-	valid.Email(controller.GetString("email"), "email")
+	logs.Info(fmt.Sprintf("%s", controller.Ctx.Input.RequestBody))
+	var response UserPost
+	err := json.Unmarshal(controller.Ctx.Input.RequestBody, &response)
+	if err != nil {
+		logs.Warn(err)
+	}
+	valid.Email(response.Email, "email")
 	if valid.HasErrors() {
 		// If there are error messages it means the validation didn't pass
 		// Print error message
