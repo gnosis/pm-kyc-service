@@ -109,6 +109,7 @@
   input-imports = [
     "github.com/astaxie/beego",
     "github.com/astaxie/beego/context/param",
+    "github.com/astaxie/beego/logs",
     "github.com/astaxie/beego/validation",
     "github.com/ethereum/go-ethereum/crypto",
     "github.com/smartystreets/goconvey/convey",
