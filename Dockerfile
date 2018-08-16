@@ -39,6 +39,6 @@ WORKDIR /root
 COPY --from=builder /go/src/github.com/gnosis/pm-kyc-service/swagger ./swagger
 COPY --from=builder /go/src/github.com/gnosis/pm-kyc-service/prod-conf ./conf
 
-ENTRYPOINT ["pm-kyc-service"]
+ENTRYPOINT ["/sbin/tini", "--"]
 
 EXPOSE 8080
