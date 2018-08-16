@@ -8,8 +8,6 @@ services:
       - "5432:5432"
 
   web:
-    command: "/go/bin/bee run -downdoc=true -gendoc=true"
-    working_dir: "/go/src/github.com/gnosis/pm-kyc-service"
     build:
       context: .
     ports: 

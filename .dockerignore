@@ -1,0 +1,6 @@
+vendor
+.git
+swagger/swagger.json
+swagger/swagger.yml
+Dockerfile
+routers/commentsRouter*

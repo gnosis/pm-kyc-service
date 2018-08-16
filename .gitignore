@@ -5,7 +5,8 @@ pm-kyc-service*
 lastupdate.tmp
 
 # auto generated documentation folder
-swagger
+swagger/swagger.json
+swagger/swagger.yml
 
 # command based generated router endpoints
 routers/commentsRouter*
