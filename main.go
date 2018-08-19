@@ -8,6 +8,7 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	_ "github.com/gnosis/pm-kyc-service/models"
 	_ "github.com/gnosis/pm-kyc-service/routers"
 )
 

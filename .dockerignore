@@ -4,3 +4,4 @@ swagger/swagger.json
 swagger/swagger.yml
 Dockerfile
 routers/commentsRouter*
+pm-kyc-service*

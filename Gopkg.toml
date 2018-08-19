@@ -40,3 +40,11 @@
 [[constraint]]
   name = "github.com/ethereum/go-ethereum"
   version = "1.8.13"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/lib/pq"
+
+[[constraint]]
+  name = "github.com/mattn/go-sqlite3"
+  version = "1.9.0"

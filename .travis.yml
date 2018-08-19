@@ -6,7 +6,7 @@ install:
 - docker build -t pm-kyc-service .
 script:
 - docker run -e TRAVIS=$TRAVIS -e TRAVIS_JOB_ID=$TRAVIS_JOB_ID -ti pm-kyc-service_builder /bin/sh 
-  -c "cd /go/src/github.com/gnosis/pm-kyc-service/ && go test tests/default_test.go -v"
+  -c "cd /go/src/github.com/gnosis/pm-kyc-service/tests && go test -v"
 after_success:
 - |-
   # Create Docker image if branch master or develop and not on pull requests
