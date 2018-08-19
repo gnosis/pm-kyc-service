@@ -19,6 +19,25 @@ type UserPost struct {
 	Signature UserSignupSignature `json:"signature"`
 }
 
+type CreateOnfidoApplicant struct {
+	Name     string `json:"first_name"`
+	LastName string `json:"last_name"`
+	Email    string `json:"email"`
+}
+
+type CreateSDKToken struct {
+	Applicant string `json:"applicant_id"`
+	Referrer  string `json:"referrer"`
+}
+
+type SDKToken struct {
+	Token string `json:"token"`
+}
+
+type GetOnfidoApplicant struct {
+	ID string `json:"id"`
+}
+
 type json_struct struct {
 	Hello string `json:"hello"`
 }

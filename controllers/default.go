@@ -1,13 +1,17 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
@@ -104,9 +108,6 @@ func (controller *UserController) Post() {
 		return
 	}
 
-	// Check if user already exists
-	// @TODO
-
 	// Recover address based con signature and terms hash
 	termsHash, err1 := hex.DecodeString(request.Signature.TermsHash)
 
@@ -147,7 +148,93 @@ func (controller *UserController) Post() {
 		return
 	}
 
+	// Check if user already exists
+	o := orm.NewOrm()
+
+	user := models.User{EthereumAddress: recoveredAddress}
+
+	errRecover := o.Read(&user)
+
+	if errRecover == nil {
+		// User exists, we just generate the SDK token afterwards
+		logs.Info("User: ", user.ApplicantID, user.TermsSignature)
+		controller.Ctx.Output.SetStatus(200)
+	} else if errRecover == orm.ErrNoRows {
+		// User doesn't exists, so we save create an applicant on Onfido and save the model
+		url := beego.AppConfig.String("apiURL") + "/applicants/"
+
+		var onfidoData = CreateOnfidoApplicant{Name: request.Name, LastName: request.LastName, Email: request.Email}
+
+		jsonData, _ := json.Marshal(onfidoData)
+
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			logs.Error(err.Error())
+			panic(err)
+		}
+
+		defer resp.Body.Close()
+
+		logs.Info("response Status:", resp.Status)
+		logs.Info("response Headers:", resp.Header)
+		body, _ := ioutil.ReadAll(resp.Body)
+		logs.Info("response Body:", string(body))
+		var applicant GetOnfidoApplicant
+		errJson := json.Unmarshal(body, &applicant)
+		if errJson != nil {
+			logs.Error(errJson.Error())
+		}
+
+		// TODO control error
+
+		user.ApplicantID = applicant.ID
+		user.TermsHash = request.Signature.TermsHash
+		user.TermsSignature = composedSignature
+
+		o.Insert(&user)
+		controller.Ctx.Output.SetStatus(201)
+	} else {
+		logs.Error(errRecover.Error())
+		controller.Abort("500")
+		return
+	}
+
 	// Get SDK token
-	controller.Data["json"] = &request
+
+	url := beego.AppConfig.String("apiURL") + "/sdk_token/"
+
+	var sdkData = CreateSDKToken{Applicant: user.ApplicantID, Referrer: "*://*/*"}
+
+	jsonData, _ := json.Marshal(sdkData)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		logs.Error(err.Error())
+		panic(err)
+	}
+
+	defer resp.Body.Close()
+
+	logs.Info("response Status:", resp.Status)
+	logs.Info("response Headers:", resp.Header)
+	body, _ := ioutil.ReadAll(resp.Body)
+	logs.Info("response Body:", string(body))
+	var sdk SDKToken
+	errJson := json.Unmarshal(body, &sdk)
+	if errJson != nil {
+		logs.Error(errJson.Error())
+	}
+
+	controller.Data["json"] = &sdk
 	controller.ServeJSON()
 }
