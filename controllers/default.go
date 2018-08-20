@@ -24,22 +24,31 @@ import (
 // @Description Retrieves user
 // @Success 200
 // @Failure 400 Malformed request
-// @router /users/0x:address[a-fA-F0-9] [get]
+// @router /users/0x:address([a-fA-F0-9]+) [get]
 func (controller *UserController) Get() {
 
 	o := orm.NewOrm()
 
-	user := models.User{EthereumAddress: controller.Ctx.Input.Param(":address")}
+	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
+	user := models.User{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
 
 	err := o.Read(&user)
 
 	if err == nil {
-		var hashed_message []byte = crypto.Keccak256([]byte(controller.Ctx.Input.Param(":address")))
-		var hex_string string = hex.EncodeToString(hashed_message)
-		m := json_struct{hex_string}
+		// User exists, verify if it has checks
+		var status bool
+		if user.Check != nil {
+			status = user.Check.IsVerified
+		} else {
+			status = false
+		}
+
+		response := UserStatus{status}
+
 		controller.Ctx.Output.SetStatus(200)
-		controller.Data["json"] = &m
+		controller.Data["json"] = &response
 		controller.ServeJSON()
+		return
 	} else if err == orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(404)
 		controller.ServeJSON()

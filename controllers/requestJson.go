@@ -46,3 +46,7 @@ type ValidationError struct {
 	Message string `json:"Message"`
 	Key     string `json:"Key"`
 }
+
+type UserStatus struct {
+	IsVerified bool `json:"isVerified"`
+}
