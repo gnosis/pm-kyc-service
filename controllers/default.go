@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,16 @@ import (
 // @router /users/0x:address([a-fA-F0-9]+) [get]
 func (controller *UserController) Get() {
 
+	// Validate address format and checksum
+	validChecksum := isValidChecksum(controller.Ctx.Input.Param(":address"))
+	if !validChecksum {
+		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(400)
+		controller.ServeJSON()
+		return
+	}
+
 	o := orm.NewOrm()
 
 	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
@@ -37,8 +48,8 @@ func (controller *UserController) Get() {
 	if err == nil {
 		// User exists, verify if it has checks
 		var status bool
-		if user.Check != nil {
-			status = user.Check.IsVerified
+		if user.OnfidoCheck != nil {
+			status = user.OnfidoCheck.IsVerified
 		} else {
 			status = false
 		}
@@ -146,7 +157,7 @@ func (controller *UserController) Post() {
 	recoveredAddress := hex.EncodeToString(crypto.Keccak256(pubKey[1:])[12:])
 	logs.Info(recoveredAddress)
 
-	// Recovered address should be the same than the one used in the url
+	// Recovered address should be the same than the one used in the reqURL
 	requestAddress := strings.ToLower(controller.Ctx.Input.Param(":address"))
 
 	if requestAddress != recoveredAddress {
@@ -170,13 +181,13 @@ func (controller *UserController) Post() {
 		controller.Ctx.Output.SetStatus(200)
 	} else if errRecover == orm.ErrNoRows {
 		// User doesn't exists, so we save create an applicant on Onfido and save the model
-		url := beego.AppConfig.String("apiURL") + "/applicants/"
+		reqURL := beego.AppConfig.String("apiURL") + "/applicants/"
 
 		var onfidoData = CreateOnfidoApplicant{Name: request.Name, LastName: request.LastName, Email: request.Email}
 
 		jsonData, _ := json.Marshal(onfidoData)
 
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(jsonData))
 		req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -193,13 +204,18 @@ func (controller *UserController) Post() {
 		logs.Info("response Headers:", resp.Header)
 		body, _ := ioutil.ReadAll(resp.Body)
 		logs.Info("response Body:", string(body))
+
+		if resp.Status != "201 Created" {
+			controller.Ctx.Output.SetStatus(403)
+			controller.ServeJSON()
+			return
+		}
+
 		var applicant GetOnfidoApplicant
 		errJson := json.Unmarshal(body, &applicant)
 		if errJson != nil {
 			logs.Error(errJson.Error())
 		}
-
-		// TODO control error
 
 		user.ApplicantID = applicant.ID
 		user.TermsHash = request.Signature.TermsHash
@@ -215,13 +231,13 @@ func (controller *UserController) Post() {
 
 	// Get SDK token
 
-	url := beego.AppConfig.String("apiURL") + "/sdk_token/"
+	reqURL := beego.AppConfig.String("apiURL") + "/sdk_token/"
 
 	var sdkData = CreateSDKToken{Applicant: user.ApplicantID, Referrer: "*://*/*"}
 
 	jsonData, _ := json.Marshal(sdkData)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(jsonData))
 	req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -238,6 +254,13 @@ func (controller *UserController) Post() {
 	logs.Info("response Headers:", resp.Header)
 	body, _ := ioutil.ReadAll(resp.Body)
 	logs.Info("response Body:", string(body))
+
+	if resp.Status != "200 OK" {
+		controller.Ctx.Output.SetStatus(403)
+		controller.ServeJSON()
+		return
+	}
+
 	var sdk SDKToken
 	errJson := json.Unmarshal(body, &sdk)
 	if errJson != nil {
@@ -246,4 +269,108 @@ func (controller *UserController) Post() {
 
 	controller.Data["json"] = &sdk
 	controller.ServeJSON()
+}
+
+// @Title Signal User Report
+// @Description After the user uploads the documents, the frontend reaches this endpoint to create the check
+// @Success 200
+// @Failure 400 Malformed request
+// @router /users/0x:address([a-fA-F0-9]+) [put]
+func (controller *UserController) Put() {
+
+	// Validate address format and checksum
+	validChecksum := isValidChecksum(controller.Ctx.Input.Param(":address"))
+	if !validChecksum {
+		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(400)
+		controller.ServeJSON()
+		return
+	}
+	// Check if user exists
+	o := orm.NewOrm()
+
+	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
+	user := models.User{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
+
+	err := o.Read(&user)
+
+	if err == nil {
+		// User exists
+		// Verify if the check was already created
+		_, errRelated := o.LoadRelated(&user, "OnfidoCheck")
+		if errRelated != nil {
+			logs.Info(errRelated.Error())
+			controller.Ctx.Output.SetStatus(500)
+			controller.ServeJSON()
+			return
+		}
+		logs.Info("Check model: ", user.OnfidoCheck)
+		if user.OnfidoCheck != nil {
+			controller.Ctx.Output.SetStatus(204)
+			controller.ServeJSON()
+			return
+		} else {
+			// Create the check in Onfido
+			reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + user.ApplicantID + "/checks/"
+			logs.Info("Creating check against ", reqURL, user.ApplicantID)
+
+			form := url.Values{}
+			form.Add("type", "standard")
+			form.Add("reports[][name]", "identity")
+			form.Add("reports[][name]", "document")
+			form.Add("reports[][name]", "facial_similarity")
+
+			req, err := http.NewRequest("POST", reqURL, strings.NewReader(form.Encode()))
+			req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				logs.Error(err.Error())
+				panic(err)
+			}
+
+			logs.Info("response Status:", resp.Status)
+			logs.Info("response Headers:", resp.Header)
+			body, _ := ioutil.ReadAll(resp.Body)
+			logs.Info("response Body:", string(body))
+
+			if resp.Status != "201 Created" {
+				controller.Ctx.Output.SetStatus(403)
+				controller.ServeJSON()
+				return
+			} else {
+				defer resp.Body.Close()
+				var checkResponse ResponseOnfidoCheck
+				// Save check
+				errJSON := json.Unmarshal(body, &checkResponse)
+				if errJSON != nil {
+					logs.Error(errJSON.Error())
+				}
+				check := models.OnfidoCheck{User: &user, CheckID: checkResponse.ID}
+				insertID, insertErr := o.Insert(&check)
+				if insertErr != nil || insertID == 0 {
+					controller.Data["json"] = insertErr.Error()
+					controller.Ctx.Output.SetStatus(500)
+					controller.ServeJSON()
+					return
+				}
+				logs.Info("Inserted ", insertID)
+
+				controller.Ctx.Output.SetStatus(201)
+				controller.ServeJSON()
+				return
+			}
+
+		}
+	} else if err == orm.ErrNoRows {
+		controller.Ctx.Output.SetStatus(404)
+		controller.ServeJSON()
+		return
+	} else {
+		controller.Abort("500")
+		return
+	}
 }

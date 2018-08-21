@@ -38,10 +38,6 @@ type GetOnfidoApplicant struct {
 	ID string `json:"id"`
 }
 
-type json_struct struct {
-	Hello string `json:"hello"`
-}
-
 type ValidationError struct {
 	Message string `json:"Message"`
 	Key     string `json:"Key"`
@@ -49,4 +45,16 @@ type ValidationError struct {
 
 type UserStatus struct {
 	IsVerified bool `json:"isVerified"`
+}
+
+type Report struct {
+	Name string `json:"name"`
+}
+
+type CreateOnfidoCheck struct {
+	Reports []Report `json:"reports"`
+}
+
+type ResponseOnfidoCheck struct {
+	ID string `json:"id"`
 }
