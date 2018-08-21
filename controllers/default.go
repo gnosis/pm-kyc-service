@@ -374,3 +374,24 @@ func (controller *UserController) Put() {
 		return
 	}
 }
+
+// @Title Liveness probe for Kubernetes
+// @Description It just returns 200 if everything is ok, or 500 if the database is not connecting etc
+// @Success 200
+// @Failure 400 Malformed request
+// @router /check [get]
+func (controller *UserController) Check() {
+	o := orm.NewOrm()
+	var users []*models.User
+	_, err := o.QueryTable("user").All(&users)
+
+	if err != nil {
+		controller.Ctx.Output.SetStatus(500)
+		controller.ServeJSON()
+		return
+	} else {
+		controller.Ctx.Output.SetStatus(200)
+		controller.ServeJSON()
+		return
+	}
+}
