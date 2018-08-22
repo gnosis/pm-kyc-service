@@ -13,13 +13,13 @@ import (
 
 // Check represents
 type OnfidoCheck struct {
-	CheckID    string `orm:"pk;size(23)"`
-	IsVerified bool   `orm:"default(false)"`
-	User       *User  `orm:"null;rel(one);"`
+	CheckID    string      `orm:"pk;size(23)"`
+	IsVerified bool        `orm:"default(false)"`
+	User       *OnfidoUser `orm:"null;rel(one);"`
 }
 
 // User represents the Prediction Markets user that must follow a KYC process in order to use the official frontend
-type User struct {
+type OnfidoUser struct {
 	EthereumAddress string       `orm:"pk;size(40)"`
 	ApplicantID     string       `orm:"size(23);unique"`
 	TermsHash       string       `orm:"size(64)"`
@@ -28,8 +28,7 @@ type User struct {
 }
 
 func init() {
-	orm.RegisterModel(new(User), new(OnfidoCheck))
-
+	orm.RegisterModel(new(OnfidoUser), new(OnfidoCheck))
 	migrateDatabase, _ := strconv.ParseBool(beego.AppConfig.String("migrateDatabase"))
 	if migrateDatabase {
 		// set default database

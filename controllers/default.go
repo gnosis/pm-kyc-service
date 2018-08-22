@@ -41,7 +41,7 @@ func (controller *UserController) Get() {
 	o := orm.NewOrm()
 
 	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
-	user := models.User{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
+	user := models.OnfidoUser{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
 
 	err := o.Read(&user)
 
@@ -171,7 +171,7 @@ func (controller *UserController) Post() {
 	// Check if user already exists
 	o := orm.NewOrm()
 
-	user := models.User{EthereumAddress: recoveredAddress}
+	user := models.OnfidoUser{EthereumAddress: recoveredAddress}
 
 	errRecover := o.Read(&user)
 
@@ -291,7 +291,7 @@ func (controller *UserController) Put() {
 	o := orm.NewOrm()
 
 	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
-	user := models.User{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
+	user := models.OnfidoUser{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
 
 	err := o.Read(&user)
 
@@ -382,10 +382,10 @@ func (controller *UserController) Put() {
 // @router /check [get]
 func (controller *UserController) Check() {
 	o := orm.NewOrm()
-	var users []*models.User
-	_, err := o.QueryTable("user").All(&users)
+	var users []*models.OnfidoUser
+	_, err := o.QueryTable("onfido_user").All(&users)
 
-	if err != nil {
+	if err != nil && err != orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(500)
 		controller.ServeJSON()
 		return
