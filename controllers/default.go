@@ -221,7 +221,11 @@ func (controller *UserController) Post() {
 		user.TermsHash = request.Signature.TermsHash
 		user.TermsSignature = composedSignature
 
-		o.Insert(&user)
+		insertID, errInsert := o.Insert(&user)
+		if errInsert != nil {
+			logs.Error(errInsert.Error())
+		}
+		logs.Info(insertID)
 		controller.Ctx.Output.SetStatus(201)
 	} else {
 		logs.Error(errRecover.Error())
