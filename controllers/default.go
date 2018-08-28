@@ -222,9 +222,9 @@ func (controller *UserController) Post() {
 		user.TermsHash = request.Signature.TermsHash
 		user.TermsSignature = composedSignature
 
-		insertID, errInsert := o.Insert(&user)
-		if errInsert != nil {
-			logs.Error(errInsert.Error())
+		insertID, insertErr := o.Insert(&user)
+		if insertErr != nil {
+			logs.Error(insertErr.Error())
 		}
 		logs.Info(insertID)
 		controller.Ctx.Output.SetStatus(201)
@@ -359,11 +359,8 @@ func (controller *UserController) Put() {
 				}
 				check := models.OnfidoCheck{User: &user, CheckID: checkResponse.ID}
 				insertID, insertErr := o.Insert(&check)
-				if insertErr != nil || insertID == 0 {
-					controller.Data["json"] = insertErr.Error()
-					controller.Ctx.Output.SetStatus(500)
-					controller.ServeJSON()
-					return
+				if insertErr != nil {
+					logs.Error(insertErr.Error())
 				}
 				logs.Info("Inserted ", insertID)
 
