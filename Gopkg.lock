@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:e6c34a6919d2c6dd2c7e322568e85f3e98f8144cffe92ff297725c916b287cbd"
+  digest = "1:4661906796c937135c00f1f0fca1c0bd7e550047c6f4b02291ce18651d07e64b"
   name = "github.com/astaxie/beego"
   packages = [
     ".",
@@ -12,6 +12,7 @@
     "grace",
     "logs",
     "orm",
+    "plugins/cors",
     "session",
     "toolbox",
     "utils",
@@ -131,6 +132,7 @@
     "github.com/astaxie/beego/context/param",
     "github.com/astaxie/beego/logs",
     "github.com/astaxie/beego/orm",
+    "github.com/astaxie/beego/plugins/cors",
     "github.com/astaxie/beego/validation",
     "github.com/ethereum/go-ethereum/crypto",
     "github.com/ethereum/go-ethereum/crypto/secp256k1",
