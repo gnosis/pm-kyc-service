@@ -29,7 +29,8 @@ import (
 func (controller *UserController) Get() {
 
 	// Validate address format and checksum
-	validChecksum := isValidChecksum(controller.Ctx.Input.Param(":address"))
+	userAddress := controller.Ctx.Input.Param(":address")
+	validChecksum := isValidChecksum(userAddress)
 	if !validChecksum {
 		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
 		controller.Data["json"] = &err
@@ -37,11 +38,11 @@ func (controller *UserController) Get() {
 		controller.ServeJSON()
 		return
 	}
-
+	// Check if user exists
 	o := orm.NewOrm()
 
-	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
-	user := models.OnfidoUser{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
+	logs.Info("Getting user with address ", userAddress)
+	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
 
 	err := o.Read(&user)
 
@@ -283,7 +284,8 @@ func (controller *UserController) Post() {
 func (controller *UserController) Put() {
 
 	// Validate address format and checksum
-	validChecksum := isValidChecksum(controller.Ctx.Input.Param(":address"))
+	userAddress := controller.Ctx.Input.Param(":address")
+	validChecksum := isValidChecksum(userAddress)
 	if !validChecksum {
 		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
 		controller.Data["json"] = &err
@@ -294,22 +296,24 @@ func (controller *UserController) Put() {
 	// Check if user exists
 	o := orm.NewOrm()
 
-	logs.Info("Getting user with address ", controller.Ctx.Input.Param(":address"))
-	user := models.OnfidoUser{EthereumAddress: strings.ToLower(controller.Ctx.Input.Param(":address"))}
+	logs.Info("Getting user with address ", userAddress)
+	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
 
 	err := o.Read(&user)
 
 	if err == nil {
 		// User exists
 		// Verify if the check was already created
-		_, errRelated := o.LoadRelated(&user, "OnfidoCheck")
+		o.LoadRelated(&user, "OnfidoCheck")
+		// LoadRelated returns `<QuerySeter> no row found` if object does not exists
+		/* _, errRelated := o.LoadRelated(&user, "OnfidoCheck")
 		if errRelated != nil {
-			logs.Info(errRelated.Error())
+			logs.Info("Cannot find OnfidoCheck for user with address ", userAddress)
 			controller.Ctx.Output.SetStatus(500)
 			controller.ServeJSON()
 			return
-		}
-		logs.Info("Check model: ", user.OnfidoCheck)
+		}*/
+		logs.Info("OnfidoCheck model: ", user.OnfidoCheck)
 		if user.OnfidoCheck != nil {
 			controller.Ctx.Output.SetStatus(204)
 			controller.ServeJSON()
