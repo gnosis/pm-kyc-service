@@ -43,8 +43,8 @@ func (controller *UserController) Get() {
 
 	logs.Info("Getting user with address ", userAddress)
 	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
-
 	err := o.Read(&user)
+	o.LoadRelated(&user, "OnfidoCheck")
 
 	if err == nil {
 		// User exists, verify if it has checks
