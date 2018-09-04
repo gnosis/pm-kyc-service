@@ -6,12 +6,14 @@ import "github.com/astaxie/beego"
 type UserController struct {
 	beego.Controller
 }
+
 type UserSignupSignature struct {
 	TermsHash string `json:"termsHash"`
 	R         string `json:"r"`
 	S         string `json:"s"`
 	V         string `json:"v"`
 }
+
 type UserPost struct {
 	Email     string              `json:"email"`
 	Name      string              `json:"name"`
