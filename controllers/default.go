@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -386,8 +388,20 @@ func (controller *UserController) Put() {
 // @Failure 400 Malformed request
 // @router /webhooks [post]
 func (controller *UserController) WebhookPost() {
-	// Serialize json
+	webhookToken := beego.AppConfig.String("webhookToken")
+	signature := controller.Ctx.Input.Header("X-Signature")
+	signatureHex, _ := hex.DecodeString(signature)
+
 	logs.Info(fmt.Sprintf("%s", controller.Ctx.Input.RequestBody))
+
+	if CheckMAC(controller.Ctx.Input.RequestBody, signatureHex, []byte(webhookToken)) == false {
+		logs.Warn("Using webhookToken ", webhookToken)
+		logs.Warn("Invalid signature ", signature)
+		controller.Ctx.Output.SetStatus(400)
+		return
+	}
+
+	// Serialize json
 	var request OnfidoWebHook
 
 	err := json.Unmarshal(controller.Ctx.Input.RequestBody, &request)
@@ -397,7 +411,8 @@ func (controller *UserController) WebhookPost() {
 		return
 	}
 
-	if OnfidoWebHook.Payload.Action != "report.completed" {
+	if request.Payload.Action != "report.completed" {
+		logs.Warn("Request not matching action. Payload action is", request.Payload.Action)
 		controller.Ctx.Output.SetStatus(200)
 		return
 	}
@@ -408,7 +423,7 @@ func (controller *UserController) WebhookPost() {
 	onfidoCheck := models.OnfidoCheck{CheckID: request.Payload.Object.Id}
 
 	if o.Read(&onfidoCheck) == nil {
-		logs.Info("Onfido report completed for id ", request.Payload.Object.Id)
+		logs.Info("Onfido report completed for id", request.Payload.Object.Id)
 		onfidoCheck.IsVerified = true
 		o.Update(&onfidoCheck, "IsVerified")
 		controller.Ctx.Output.SetStatus(200)
@@ -440,4 +455,12 @@ func (controller *UserController) Check() {
 		controller.ServeJSON()
 		return
 	}
+}
+
+func CheckMAC(message, messageMAC, key []byte) bool {
+	mac := hmac.New(sha1.New, key)
+	mac.Write(message)
+	expectedMAC := mac.Sum(nil)
+
+	return hmac.Equal(messageMAC, expectedMAC)
 }
