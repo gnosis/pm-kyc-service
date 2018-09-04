@@ -58,3 +58,20 @@ type CreateOnfidoCheck struct {
 type ResponseOnfidoCheck struct {
 	ID string `json:"id"`
 }
+
+type OnfidoWebHook struct {
+	Payload OnfidoPayload `json:payload`
+}
+
+type OnfidoPayload struct {
+	Action       string       `json:action`
+	ResourceType string       `json:resource_type`
+	Object       OnfidoObject `json:object`
+}
+
+type OnfidoObject struct {
+	CompletedAt string `json:completed_at`
+	Href        string `json:href`
+	Id          string `json:id`
+	Status      string `json:status`
+}

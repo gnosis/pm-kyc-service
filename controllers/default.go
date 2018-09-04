@@ -380,6 +380,47 @@ func (controller *UserController) Put() {
 	}
 }
 
+// @Title Webhook post
+// @Description Called by Onfido when report status changes
+// @Success 200
+// @Failure 400 Malformed request
+// @router /webhooks [post]
+func (controller *UserController) WebhookPost() {
+	// Serialize json
+	logs.Info(fmt.Sprintf("%s", controller.Ctx.Input.RequestBody))
+	var request OnfidoWebHook
+
+	err := json.Unmarshal(controller.Ctx.Input.RequestBody, &request)
+	if err != nil {
+		logs.Warn(err)
+		controller.Ctx.Output.SetStatus(400)
+		return
+	}
+
+	if OnfidoWebHook.Payload.Action != "report.completed" {
+		controller.Ctx.Output.SetStatus(200)
+		return
+	}
+
+	// Check if user already exists
+	o := orm.NewOrm()
+
+	onfidoCheck := models.OnfidoCheck{CheckID: request.Payload.Object.Id}
+
+	if o.Read(&onfidoCheck) == nil {
+		logs.Info("Onfido report completed for id ", request.Payload.Object.Id)
+		onfidoCheck.IsVerified = true
+		o.Update(&onfidoCheck, "IsVerified")
+		controller.Ctx.Output.SetStatus(200)
+		controller.ServeJSON()
+		return
+	} else {
+		controller.Ctx.Output.SetStatus(404)
+		controller.ServeJSON()
+		return
+	}
+}
+
 // @Title Liveness probe for Kubernetes
 // @Description It just returns 200 if everything is ok, or 500 if the database is not connecting etc
 // @Success 200
