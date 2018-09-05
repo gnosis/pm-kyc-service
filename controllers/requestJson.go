@@ -62,18 +62,22 @@ type ResponseOnfidoCheck struct {
 }
 
 type OnfidoWebHook struct {
-	Payload OnfidoPayload `json:payload`
+	Payload OnfidoPayload `json:"payload"`
 }
 
 type OnfidoPayload struct {
-	Action       string       `json:action`
-	ResourceType string       `json:resource_type`
-	Object       OnfidoObject `json:object`
+	Action       string       `json:"action"`
+	ResourceType string       `json:"resource_type"`
+	Object       OnfidoObject `json:"object"`
 }
 
 type OnfidoObject struct {
-	CompletedAt string `json:completed_at`
-	Href        string `json:href`
-	Id          string `json:id`
-	Status      string `json:status`
+	CompletedAt string `json:"completed_at"`
+	Href        string `json:"href"`
+	Id          string `json:"id"`
+	Status      string `json:"status"`
+}
+
+func (this *OnfidoWebHook) IsReportCompleted() bool {
+	return this.Payload.Action == "report.completed"
 }

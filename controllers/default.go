@@ -63,7 +63,6 @@ func (controller *UserController) Get() {
 		return
 	} else if err == orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(404)
-		controller.ServeJSON()
 		return
 	} else {
 		controller.Abort("500")
@@ -208,7 +207,6 @@ func (controller *UserController) Post() {
 
 		if resp.Status != "201 Created" {
 			controller.Ctx.Output.SetStatus(403)
-			controller.ServeJSON()
 			return
 		}
 
@@ -262,7 +260,6 @@ func (controller *UserController) Post() {
 
 	if resp.Status != "200 OK" {
 		controller.Ctx.Output.SetStatus(403)
-		controller.ServeJSON()
 		return
 	}
 
@@ -316,7 +313,6 @@ func (controller *UserController) Put() {
 		logs.Info("OnfidoCheck model: ", user.OnfidoCheck)
 		if user.OnfidoCheck != nil {
 			controller.Ctx.Output.SetStatus(204)
-			controller.ServeJSON()
 			return
 		} else {
 			// Create the check in Onfido
@@ -347,7 +343,6 @@ func (controller *UserController) Put() {
 
 			if resp.Status != "201 Created" {
 				controller.Ctx.Output.SetStatus(403)
-				controller.ServeJSON()
 				return
 			} else {
 				defer resp.Body.Close()
@@ -365,14 +360,12 @@ func (controller *UserController) Put() {
 				logs.Info("Inserted ", insertID)
 
 				controller.Ctx.Output.SetStatus(201)
-				controller.ServeJSON()
 				return
 			}
 
 		}
 	} else if err == orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(404)
-		controller.ServeJSON()
 		return
 	} else {
 		controller.Abort("500")
@@ -390,11 +383,10 @@ func (controller *UserController) WebhookPost() {
 	signature := controller.Ctx.Input.Header("X-Signature")
 	signatureHex, _ := hex.DecodeString(signature)
 
-	logs.Info(fmt.Sprintf("%s", controller.Ctx.Input.RequestBody))
+	logs.Info(fmt.Sprintf("Received WebHook with signature %s and content %s", signature, controller.Ctx.Input.RequestBody))
 
 	if CheckMAC(controller.Ctx.Input.RequestBody, signatureHex, []byte(webhookToken)) == false {
-		logs.Warn("Using webhookToken ", webhookToken)
-		logs.Warn("Invalid signature ", signature)
+		logs.Warn(fmt.Sprintf("Invalid signature %s using webhookToken %s", signature, webhookToken))
 		controller.Ctx.Output.SetStatus(400)
 		return
 	}
@@ -409,7 +401,7 @@ func (controller *UserController) WebhookPost() {
 		return
 	}
 
-	if request.Payload.Action != "report.completed" {
+	if request.IsReportCompleted() == false {
 		logs.Warn("Request not matching action. Payload action is", request.Payload.Action)
 		controller.Ctx.Output.SetStatus(200)
 		return
@@ -425,11 +417,9 @@ func (controller *UserController) WebhookPost() {
 		onfidoCheck.IsVerified = true
 		o.Update(&onfidoCheck, "IsVerified")
 		controller.Ctx.Output.SetStatus(200)
-		controller.ServeJSON()
 		return
 	} else {
 		controller.Ctx.Output.SetStatus(404)
-		controller.ServeJSON()
 		return
 	}
 }
@@ -446,11 +436,9 @@ func (controller *UserController) Check() {
 
 	if err != nil && err != orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(500)
-		controller.ServeJSON()
 		return
 	} else {
 		controller.Ctx.Output.SetStatus(200)
-		controller.ServeJSON()
 		return
 	}
 }
