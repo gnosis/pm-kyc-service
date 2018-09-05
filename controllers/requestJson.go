@@ -6,12 +6,14 @@ import "github.com/astaxie/beego"
 type UserController struct {
 	beego.Controller
 }
+
 type UserSignupSignature struct {
 	TermsHash string `json:"termsHash"`
 	R         string `json:"r"`
 	S         string `json:"s"`
 	V         string `json:"v"`
 }
+
 type UserPost struct {
 	Email     string              `json:"email"`
 	Name      string              `json:"name"`
@@ -57,4 +59,25 @@ type CreateOnfidoCheck struct {
 
 type ResponseOnfidoCheck struct {
 	ID string `json:"id"`
+}
+
+type OnfidoWebHook struct {
+	Payload OnfidoPayload `json:"payload"`
+}
+
+type OnfidoPayload struct {
+	Action       string       `json:"action"`
+	ResourceType string       `json:"resource_type"`
+	Object       OnfidoObject `json:"object"`
+}
+
+type OnfidoObject struct {
+	CompletedAt string `json:"completed_at"`
+	Href        string `json:"href"`
+	Id          string `json:"id"`
+	Status      string `json:"status"`
+}
+
+func (this *OnfidoWebHook) IsReportCompleted() bool {
+	return this.Payload.Action == "report.completed"
 }
