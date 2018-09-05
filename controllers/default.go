@@ -185,7 +185,7 @@ func (controller *UserController) Post() {
 
 	if errRecover == nil {
 		// User exists, we just generate the SDK token afterwards
-		logs.Info("User: ", user.ApplicantID, user.TermsSignature)
+		logs.Info("User: ", user.ApplicantId, user.TermsSignature)
 		controller.Ctx.Output.SetStatus(200)
 	} else if errRecover == orm.ErrNoRows {
 		// User doesn't exists, so we save create an applicant on Onfido and save the model
@@ -224,7 +224,7 @@ func (controller *UserController) Post() {
 			logs.Error(errJson.Error())
 		}
 
-		user.ApplicantID = applicant.ID
+		user.ApplicantId = applicant.ID
 		user.TermsHash = request.Signature.TermsHash
 		user.TermsSignature = composedSignature
 
@@ -244,7 +244,7 @@ func (controller *UserController) Post() {
 
 	reqURL := beego.AppConfig.String("apiURL") + "/sdk_token/"
 
-	var sdkData = CreateSDKToken{Applicant: user.ApplicantID, Referrer: "*://*/*"}
+	var sdkData = CreateSDKToken{Applicant: user.ApplicantId, Referrer: "*://*/*"}
 
 	jsonData, _ := json.Marshal(sdkData)
 
@@ -324,8 +324,8 @@ func (controller *UserController) Put() {
 			return
 		} else {
 			// Create the check in Onfido
-			reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + user.ApplicantID + "/checks/"
-			logs.Info("Creating check against ", reqURL, user.ApplicantID)
+			reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + user.ApplicantId + "/checks/"
+			logs.Info("Creating check against ", reqURL, user.ApplicantId)
 
 			form := url.Values{}
 			form.Add("type", "standard")
@@ -360,7 +360,7 @@ func (controller *UserController) Put() {
 				if errJSON != nil {
 					logs.Error(errJSON.Error())
 				}
-				check := models.OnfidoCheck{User: &user, CheckID: checkResponse.ID}
+				check := models.OnfidoCheck{User: &user, CheckId: checkResponse.ID}
 				insertID, insertErr := o.Insert(&check)
 				if insertErr != nil {
 					logs.Error(insertErr.Error())
@@ -418,14 +418,14 @@ func (controller *UserController) WebhookPost() {
 	// Check if user already exists
 	o := orm.NewOrm()
 
-	onfidoCheck := models.OnfidoCheck{CheckID: request.Payload.Object.Id}
+	onfidoCheck := models.OnfidoCheck{CheckId: request.Payload.Object.Id}
 
 	if o.Read(&onfidoCheck) == nil {
 		user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
 		o.Read(&user)
 		// Load Related is not working
 		// o.LoadRelated(&onfidoCheck, "User")
-		onfidoAPICheck := GetOnfidoCheckFromApi(user.ApplicantID, onfidoCheck.CheckID)
+		onfidoAPICheck := GetOnfidoCheckFromApi(user.ApplicantId, onfidoCheck.CheckId)
 		logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
 		onfidoCheck.IsVerified = true
 		onfidoCheck.IsClear = onfidoAPICheck.IsClear()

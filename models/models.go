@@ -13,7 +13,7 @@ import (
 
 // Check represents
 type OnfidoCheck struct {
-	CheckID    string      `orm:"pk;size(50)"`
+	CheckId    string      `orm:"pk;size(50)"`
 	IsVerified bool        `orm:"default(false)"`
 	IsClear    bool        `orm:"default(false)"`
 	User       *OnfidoUser `orm:"null;rel(one);"`
@@ -22,7 +22,7 @@ type OnfidoCheck struct {
 // User represents the Prediction Markets user that must follow a KYC process in order to use the official frontend
 type OnfidoUser struct {
 	EthereumAddress string       `orm:"pk;size(40)"`
-	ApplicantID     string       `orm:"size(50);unique"`
+	ApplicantId     string       `orm:"size(50);unique"`
 	TermsHash       string       `orm:"size(64)"`
 	TermsSignature  string       `orm:"size(130);unique"`
 	OnfidoCheck     *OnfidoCheck `orm:"reverse(one)"`
