@@ -53,7 +53,11 @@ func (controller *UserController) Get() {
 			status = PENDING_DOCUMENT_UPLOAD
 		} else {
 			if user.OnfidoCheck.IsVerified {
-				status = ACCEPTED
+				if user.OnfidoCheck.IsClear {
+					status = ACCEPTED
+				} else {
+					status = DENIED
+				}
 			} else {
 				status = WAITING_FOR_APPROVAL
 			}
@@ -389,7 +393,7 @@ func (controller *UserController) WebhookPost() {
 
 	logs.Info(fmt.Sprintf("Received WebHook with signature %s and content %s", signature, controller.Ctx.Input.RequestBody))
 
-	if CheckMAC(controller.Ctx.Input.RequestBody, signatureHex, []byte(webhookToken)) == false {
+	if CheckHmac(controller.Ctx.Input.RequestBody, signatureHex, []byte(webhookToken)) == false {
 		logs.Warn(fmt.Sprintf("Invalid signature %s using webhookToken %s", signature, webhookToken))
 		controller.Ctx.Output.SetStatus(400)
 		return
@@ -417,9 +421,15 @@ func (controller *UserController) WebhookPost() {
 	onfidoCheck := models.OnfidoCheck{CheckID: request.Payload.Object.Id}
 
 	if o.Read(&onfidoCheck) == nil {
-		logs.Info("Onfido report completed for id", request.Payload.Object.Id)
+		user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
+		o.Read(&user)
+		// Load Related is not working
+		// o.LoadRelated(&onfidoCheck, "User")
+		onfidoAPICheck := GetOnfidoCheckFromApi(user.ApplicantID, onfidoCheck.CheckID)
+		logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
 		onfidoCheck.IsVerified = true
-		o.Update(&onfidoCheck, "IsVerified")
+		onfidoCheck.IsClear = onfidoAPICheck.IsClear()
+		o.Update(&onfidoCheck, "IsVerified", "IsClear")
 		controller.Ctx.Output.SetStatus(200)
 		return
 	} else {
@@ -445,4 +455,34 @@ func (controller *UserController) Check() {
 		controller.Ctx.Output.SetStatus(200)
 		return
 	}
+}
+
+func GetOnfidoCheckFromApi(applicantId, checkId string) OnfidoAPICheck {
+	apiToken := beego.AppConfig.String("apiToken")
+	reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + applicantId + "/checks/" + checkId
+
+	req, err := http.NewRequest("GET", reqURL, nil)
+	req.Header.Set("Authorization", "Token token="+apiToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		logs.Error(err.Error())
+		panic(err)
+	}
+
+	defer resp.Body.Close()
+
+	logs.Info("Getting Onfido Check From Api. Status:", resp.Status)
+	body, _ := ioutil.ReadAll(resp.Body)
+	logs.Info("Response Body:", string(body))
+
+	var onfidoApiCheck OnfidoAPICheck
+	errJson := json.Unmarshal(body, &onfidoApiCheck)
+	if errJson != nil {
+		logs.Error(errJson.Error())
+	}
+
+	return onfidoApiCheck
 }

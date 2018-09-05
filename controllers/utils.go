@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 )
 
-func CheckMAC(message, messageMAC, key []byte) bool {
+func CheckHmac(message, messageMAC, key []byte) bool {
 	mac := hmac.New(sha1.New, key)
 	mac.Write(message)
 	expectedMAC := mac.Sum(nil)

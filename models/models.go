@@ -15,6 +15,7 @@ import (
 type OnfidoCheck struct {
 	CheckID    string      `orm:"pk;size(50)"`
 	IsVerified bool        `orm:"default(false)"`
+	IsClear    bool        `orm:"default(false)"`
 	User       *OnfidoUser `orm:"null;rel(one);"`
 }
 

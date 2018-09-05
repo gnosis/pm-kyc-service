@@ -86,6 +86,10 @@ type OnfidoWebHook struct {
 	Payload OnfidoPayload `json:"payload"`
 }
 
+func (this *OnfidoWebHook) IsReportCompleted() bool {
+	return this.Payload.Action == "report.completed"
+}
+
 type OnfidoPayload struct {
 	Action       string       `json:"action"`
 	ResourceType string       `json:"resource_type"`
@@ -99,6 +103,11 @@ type OnfidoObject struct {
 	Status      string `json:"status"`
 }
 
-func (this *OnfidoWebHook) IsReportCompleted() bool {
-	return this.Payload.Action == "report.completed"
+// https://documentation.onfido.com/#check-object
+type OnfidoAPICheck struct {
+	Result string `json:"result"`
+}
+
+func (this *OnfidoAPICheck) IsClear() bool {
+	return this.Result == "clear"
 }
