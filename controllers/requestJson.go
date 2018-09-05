@@ -17,7 +17,7 @@ func (this OnfidoStatus) String() string {
 		"WAITING_FOR_APPROVAL",
 		"ACCEPTED",
 		"DENIED"}
-	if this < PENDING_DOCUMENT_UPLOAD || this > WAITING_FOR_APPROVAL {
+	if this < PENDING_DOCUMENT_UPLOAD || this > DENIED {
 		return "Unknown"
 	}
 	return names[this]
