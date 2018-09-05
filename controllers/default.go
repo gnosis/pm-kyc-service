@@ -48,14 +48,18 @@ func (controller *UserController) Get() {
 
 	if err == nil {
 		// User exists, verify if it has checks
-		var status bool
-		if user.OnfidoCheck != nil {
-			status = user.OnfidoCheck.IsVerified
+		var status OnfidoStatus
+		if user.OnfidoCheck == nil {
+			status = PENDING_DOCUMENT_UPLOAD
 		} else {
-			status = false
+			if user.OnfidoCheck.IsVerified {
+				status = ACCEPTED
+			} else {
+				status = WAITING_FOR_APPROVAL
+			}
 		}
 
-		response := UserStatus{status}
+		response := UserStatus{status.String()}
 
 		controller.Ctx.Output.SetStatus(200)
 		controller.Data["json"] = &response

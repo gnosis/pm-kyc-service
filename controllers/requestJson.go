@@ -2,6 +2,27 @@ package controllers
 
 import "github.com/astaxie/beego"
 
+type OnfidoStatus int
+
+const (
+	PENDING_DOCUMENT_UPLOAD OnfidoStatus = iota
+	WAITING_FOR_APPROVAL
+	ACCEPTED
+	DENIED
+)
+
+func (this OnfidoStatus) String() string {
+	names := [...]string{
+		"PENDING_DOCUMENT_UPLOAD",
+		"WAITING_FOR_APPROVAL",
+		"ACCEPTED",
+		"DENIED"}
+	if this < PENDING_DOCUMENT_UPLOAD || this > WAITING_FOR_APPROVAL {
+		return "Unknown"
+	}
+	return names[this]
+}
+
 // Operations about users
 type UserController struct {
 	beego.Controller
@@ -46,7 +67,7 @@ type ValidationError struct {
 }
 
 type UserStatus struct {
-	IsVerified bool `json:"isVerified"`
+	Status string `json:"status"`
 }
 
 type Report struct {
