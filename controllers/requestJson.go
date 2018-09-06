@@ -42,7 +42,7 @@ type UserPost struct {
 	Signature UserSignupSignature `json:"signature"`
 }
 
-type CreateOnfidoApplicant struct {
+type OnfidoApplicantCreation struct {
 	Name     string `json:"first_name"`
 	LastName string `json:"last_name"`
 	Email    string `json:"email"`
@@ -55,10 +55,6 @@ type CreateSDKToken struct {
 
 type SDKToken struct {
 	Token string `json:"token"`
-}
-
-type GetOnfidoApplicant struct {
-	ID string `json:"id"`
 }
 
 type ValidationError struct {
@@ -74,12 +70,22 @@ type Report struct {
 	Name string `json:"name"`
 }
 
-type CreateOnfidoCheck struct {
+type OnfidoApplicant struct {
+	ID string `json:"id"`
+}
+
+type OnfidoCheckCreation struct {
 	Reports []Report `json:"reports"`
 }
 
-type ResponseOnfidoCheck struct {
-	ID string `json:"id"`
+// https://documentation.onfido.com/#check-object
+type OnfidoCheck struct {
+	ID     string `json:"id"`
+	Result string `json:"result"`
+}
+
+func (this *OnfidoCheck) IsClear() bool {
+	return this.Result == "clear"
 }
 
 type OnfidoWebHook struct {
@@ -101,13 +107,4 @@ type OnfidoObject struct {
 	Href        string `json:"href"`
 	Id          string `json:"id"`
 	Status      string `json:"status"`
-}
-
-// https://documentation.onfido.com/#check-object
-type OnfidoAPICheck struct {
-	Result string `json:"result"`
-}
-
-func (this *OnfidoAPICheck) IsClear() bool {
-	return this.Result == "clear"
 }

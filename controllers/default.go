@@ -1,14 +1,10 @@
 package controllers
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -189,42 +185,13 @@ func (controller *UserController) Post() {
 		controller.Ctx.Output.SetStatus(200)
 	} else if errRecover == orm.ErrNoRows {
 		// User doesn't exists, so we save create an applicant on Onfido and save the model
-		reqURL := beego.AppConfig.String("apiURL") + "/applicants/"
 
-		var onfidoData = CreateOnfidoApplicant{Name: request.Name, LastName: request.LastName, Email: request.Email}
-
-		jsonData, _ := json.Marshal(onfidoData)
-
-		req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(jsonData))
-		req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
-		req.Header.Set("Content-Type", "application/json")
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			logs.Error(err.Error())
-			panic(err)
-		}
-
-		defer resp.Body.Close()
-
-		logs.Info("response Status:", resp.Status)
-		logs.Info("response Headers:", resp.Header)
-		body, _ := ioutil.ReadAll(resp.Body)
-		logs.Info("response Body:", string(body))
-
-		if resp.Status != "201 Created" {
+		onfidoApplicant := CreateOnfidoApplicant(request.Name, request.LastName, request.Email)
+		if onfidoApplicant == nil {
 			controller.Ctx.Output.SetStatus(403)
 			return
 		}
-
-		var applicant GetOnfidoApplicant
-		errJson := json.Unmarshal(body, &applicant)
-		if errJson != nil {
-			logs.Error(errJson.Error())
-		}
-
-		user.ApplicantId = applicant.ID
+		user.ApplicantId = onfidoApplicant.ID
 		user.TermsHash = request.Signature.TermsHash
 		user.TermsSignature = composedSignature
 
@@ -241,43 +208,13 @@ func (controller *UserController) Post() {
 	}
 
 	// Get SDK token
-
-	reqURL := beego.AppConfig.String("apiURL") + "/sdk_token/"
-
-	var sdkData = CreateSDKToken{Applicant: user.ApplicantId, Referrer: "*://*/*"}
-
-	jsonData, _ := json.Marshal(sdkData)
-
-	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(jsonData))
-	req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		logs.Error(err.Error())
-		panic(err)
-	}
-
-	defer resp.Body.Close()
-
-	logs.Info("response Status:", resp.Status)
-	logs.Info("response Headers:", resp.Header)
-	body, _ := ioutil.ReadAll(resp.Body)
-	logs.Info("response Body:", string(body))
-
-	if resp.Status != "200 OK" {
+	onfidoSDKToken := GetOnfidoSDKToken(user.ApplicantId)
+	if onfidoSDKToken == nil {
 		controller.Ctx.Output.SetStatus(403)
 		return
 	}
 
-	var sdk SDKToken
-	errJson := json.Unmarshal(body, &sdk)
-	if errJson != nil {
-		logs.Error(errJson.Error())
-	}
-
-	controller.Data["json"] = &sdk
+	controller.Data["json"] = onfidoSDKToken
 	controller.ServeJSON()
 }
 
@@ -322,56 +259,23 @@ func (controller *UserController) Put() {
 		if user.OnfidoCheck != nil {
 			controller.Ctx.Output.SetStatus(204)
 			return
-		} else {
-			// Create the check in Onfido
-			reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + user.ApplicantId + "/checks/"
-			logs.Info("Creating check against ", reqURL, user.ApplicantId)
-
-			form := url.Values{}
-			form.Add("type", "standard")
-			form.Add("reports[][name]", "identity")
-			form.Add("reports[][name]", "document")
-			form.Add("reports[][name]", "facial_similarity")
-
-			req, err := http.NewRequest("POST", reqURL, strings.NewReader(form.Encode()))
-			req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				logs.Error(err.Error())
-				panic(err)
-			}
-
-			logs.Info("response Status:", resp.Status)
-			logs.Info("response Headers:", resp.Header)
-			body, _ := ioutil.ReadAll(resp.Body)
-			logs.Info("response Body:", string(body))
-
-			if resp.Status != "201 Created" {
-				controller.Ctx.Output.SetStatus(403)
-				return
-			} else {
-				defer resp.Body.Close()
-				var checkResponse ResponseOnfidoCheck
-				// Save check
-				errJSON := json.Unmarshal(body, &checkResponse)
-				if errJSON != nil {
-					logs.Error(errJSON.Error())
-				}
-				check := models.OnfidoCheck{User: &user, CheckId: checkResponse.ID}
-				insertID, insertErr := o.Insert(&check)
-				if insertErr != nil {
-					logs.Error(insertErr.Error())
-				}
-				logs.Info("Inserted ", insertID)
-
-				controller.Ctx.Output.SetStatus(201)
-				return
-			}
-
 		}
+
+		onfidoCheck := CreateOnfidoCheck(user.ApplicantId)
+		if onfidoCheck == nil {
+			controller.Ctx.Output.SetStatus(403)
+			return
+		}
+
+		onfidoCheckModel := models.OnfidoCheck{User: &user, CheckId: onfidoCheck.ID}
+		insertID, insertErr := o.Insert(&onfidoCheckModel)
+		if insertErr != nil {
+			logs.Error(insertErr.Error())
+		}
+		logs.Info("Inserted ", insertID)
+
+		controller.Ctx.Output.SetStatus(201)
+		return
 	} else if err == orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(404)
 		return
@@ -425,7 +329,7 @@ func (controller *UserController) WebhookPost() {
 		o.Read(&user)
 		// Load Related is not working
 		// o.LoadRelated(&onfidoCheck, "User")
-		onfidoAPICheck := GetOnfidoCheckFromApi(user.ApplicantId, onfidoCheck.CheckId)
+		onfidoAPICheck := GetOnfidoCheck(user.ApplicantId, onfidoCheck.CheckId)
 		logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
 		onfidoCheck.IsVerified = true
 		onfidoCheck.IsClear = onfidoAPICheck.IsClear()
@@ -455,34 +359,4 @@ func (controller *UserController) Check() {
 		controller.Ctx.Output.SetStatus(200)
 		return
 	}
-}
-
-func GetOnfidoCheckFromApi(applicantId, checkId string) OnfidoAPICheck {
-	apiToken := beego.AppConfig.String("apiToken")
-	reqURL := beego.AppConfig.String("apiURL") + "/applicants/" + applicantId + "/checks/" + checkId
-
-	req, err := http.NewRequest("GET", reqURL, nil)
-	req.Header.Set("Authorization", "Token token="+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		logs.Error(err.Error())
-		panic(err)
-	}
-
-	defer resp.Body.Close()
-
-	logs.Info("Getting Onfido Check From Api. Status:", resp.Status)
-	body, _ := ioutil.ReadAll(resp.Body)
-	logs.Info("Response Body:", string(body))
-
-	var onfidoApiCheck OnfidoAPICheck
-	errJson := json.Unmarshal(body, &onfidoApiCheck)
-	if errJson != nil {
-		logs.Error(errJson.Error())
-	}
-
-	return onfidoApiCheck
 }
