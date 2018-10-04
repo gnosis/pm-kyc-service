@@ -151,7 +151,7 @@ func (controller *UserController) Post() {
 	minimumBalanceWei, _ := (new(big.Int)).SetString(beego.AppConfig.String("minimumBalanceWei"), 10)
 
 	if balance.Cmp(minimumBalanceWei) == -1 {
-		message := fmt.Sprintf("Balance for account %s should be at least %v wei and is %v wei", ethereumAddress, minimumBalanceWei, balance)
+		message := fmt.Sprintf("Balance for account %s should be at least %s wei and is %s wei", ethereumAddress, minimumBalanceWei.String(), balance.String())
 		err := ValidationError{Message: message, Key: "address"}
 		controller.Data["json"] = &err
 		controller.Ctx.Output.SetStatus(500)
@@ -192,7 +192,8 @@ func (controller *UserController) Post() {
 	requestAddress := strings.ToLower(ethereumAddress)
 
 	if requestAddress != recoveredAddress {
-		err := ValidationError{Message: "Recovered address missmatch", Key: "address"}
+		message := fmt.Sprintf("Recovered address is %s: missmatch", recoveredAddress)
+		err := ValidationError{Message: message, Key: "address"}
 		controller.Data["json"] = &err
 		controller.Ctx.Output.SetStatus(401)
 		controller.ServeJSON()
