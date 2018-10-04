@@ -75,18 +75,18 @@ func CreateOnfidoCheck(applicantId string) *OnfidoCheck {
 	body, _ := ioutil.ReadAll(resp.Body)
 	logs.Info("response Body:", string(body))
 
+	defer resp.Body.Close()
 	if resp.Status != "201 Created" {
 		return nil
-	} else {
-		defer resp.Body.Close()
-		var OnfidoCheck OnfidoCheck
-		// Save check
-		errJSON := json.Unmarshal(body, &OnfidoCheck)
-		if errJSON != nil {
-			logs.Error(errJSON.Error())
-		}
-		return &OnfidoCheck
 	}
+
+	var OnfidoCheck OnfidoCheck
+	// Save check
+	errJSON := json.Unmarshal(body, &OnfidoCheck)
+	if errJSON != nil {
+		logs.Error(errJSON.Error())
+	}
+	return &OnfidoCheck
 }
 
 func GetOnfidoCheck(applicantId, checkId string) OnfidoCheck {
@@ -111,9 +111,9 @@ func GetOnfidoCheck(applicantId, checkId string) OnfidoCheck {
 	logs.Info("Response Body:", string(body))
 
 	var onfidoCheck OnfidoCheck
-	errJson := json.Unmarshal(body, &onfidoCheck)
-	if errJson != nil {
-		logs.Error(errJson.Error())
+	errJSON := json.Unmarshal(body, &onfidoCheck)
+	if errJSON != nil {
+		logs.Error(errJSON.Error())
 	}
 
 	return onfidoCheck
