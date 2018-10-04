@@ -12,8 +12,12 @@ import (
 	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/gnosis/pm-kyc-service/contracts"
 	"github.com/gnosis/pm-kyc-service/models"
 	"github.com/onrik/ethrpc"
 )
@@ -163,47 +167,60 @@ func (controller *UserController) Post() {
 	termsHash, err1 := hex.DecodeString(request.Signature.TermsHash)
 
 	rInt, _ := (new(big.Int)).SetString(request.Signature.R, 10)
-
 	sInt, _ := (new(big.Int)).SetString(request.Signature.S, 10)
 	vInt, _ := strconv.Atoi(request.Signature.V)
 
+	requestAddress := strings.ToLower(ethereumAddress)
 	logs.Info("Signature", rInt, sInt, vInt)
 	composedSignature := fmt.Sprintf("%064x%064x%02x", rInt, sInt, vInt-27)
 	logs.Info("Composed signature (hex) ", composedSignature)
 
-	signatureBytes, _ := hex.DecodeString(composedSignature)
+	if vInt == 1 {
+		//Contract signature
+		contractAddress := common.HexToAddress("0x" + ethereumAddress)
+		client, err := ethclient.Dial(ethereumRPCURL)
+		if err != nil {
+			logs.Error("Unable to connect to ethereum network: %v", err)
+		}
+		instance, err := contracts.NewISignatureValidator(address, client)
+		if err != nil {
+			log.Error("Unable to connect to contract: %s", ethereumAddress)
+		}
+		// TODO Add terms to signature
+		// instance.isValidSignature(nil,terms, nil)
+	} else {
+		signatureBytes, _ := hex.DecodeString(composedSignature)
 
-	pubKey, err3 := secp256k1.RecoverPubkey(
-		termsHash,
-		signatureBytes,
-	)
+		pubKey, err3 := secp256k1.RecoverPubkey(
+			termsHash,
+			signatureBytes,
+		)
 
-	if err1 != nil {
-		logs.Warn(err1.Error())
-	}
-	if err3 != nil {
-		logs.Warn(err3.Error())
-	}
-	logs.Info("pubkey", hex.EncodeToString(pubKey))
-	recoveredAddress := hex.EncodeToString(crypto.Keccak256(pubKey[1:])[12:])
-	logs.Info(recoveredAddress)
+		if err1 != nil {
+			logs.Warn(err1.Error())
+		}
+		if err3 != nil {
+			logs.Warn(err3.Error())
+		}
+		logs.Info("pubkey", hex.EncodeToString(pubKey))
+		recoveredAddress := hex.EncodeToString(crypto.Keccak256(pubKey[1:])[12:])
+		logs.Info(recoveredAddress)
 
-	// Recovered address should be the same than the one used in the reqURL
-	requestAddress := strings.ToLower(ethereumAddress)
-
-	if requestAddress != recoveredAddress {
-		message := fmt.Sprintf("Recovered address is %s: missmatch", recoveredAddress)
-		err := ValidationError{Message: message, Key: "address"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(401)
-		controller.ServeJSON()
-		return
+		// Recovered address should be the same than the one used in the reqURL
+		if requestAddress != recoveredAddress {
+			message := fmt.Sprintf("Recovered address is %s: missmatch", recoveredAddress)
+			err := ValidationError{Message: message, Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(401)
+			controller.ServeJSON()
+			return
+		}
 	}
 
 	// Check if user already exists
 	o := orm.NewOrm()
 
-	user := models.OnfidoUser{EthereumAddress: recoveredAddress}
+	user := models.OnfidoUser{EthereumAddress: requestAddress}
 
 	errRecover := o.Read(&user)
 
