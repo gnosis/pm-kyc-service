@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/gnosis/pm-kyc-service/contracts"
 	"github.com/gnosis/pm-kyc-service/models"
 	"github.com/onrik/ethrpc"
@@ -140,7 +139,7 @@ func (controller *UserController) Post() {
 		return
 	}
 
-	calculatedTermsHash := hex.EncodeToString(crypto.Keccak256(request.Signature.Terms))
+	calculatedTermsHash := hex.EncodeToString(crypto.Keccak256([]byte(request.Signature.Terms)))
 
 	if calculatedTermsHash != request.Signature.TermsHash {
 		message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
@@ -190,17 +189,17 @@ func (controller *UserController) Post() {
 
 	if vInt == 1 {
 		//Contract signature
-		contractAddress := common.HexToAddress("0x" + ethereumAddress)
+		contractAddress := common.HexToAddress(ethereumAddress)
 		client, err := ethclient.Dial(ethereumRPCURL)
 		if err != nil {
 			logs.Error("Unable to connect to ethereum network: %v", err)
 		}
-		instance, err := contracts.NewISignatureValidator(address, client)
+		instance, err := contracts.NewISignatureValidator(contractAddress, client)
 		if err != nil {
-			log.Error("Unable to connect to contract: %s", ethereumAddress)
+			logs.Error("Unable to connect to contract: %s", ethereumAddress)
 		}
 		// TODO Add terms to signature
-		valid, err := instance.isValidSignature(nil, []byte(UserPost.Signature.Terms), nil)
+		valid, err := instance.IsValidSignature(nil, []byte(request.Signature.Terms), nil)
 		if err != nil {
 			logs.Error(err)
 			err := ValidationError{Message: "Cannot check if signature is valid on contract", Key: "address"}
@@ -211,7 +210,7 @@ func (controller *UserController) Post() {
 		}
 
 		if !valid {
-			message := fmt.Sprintf("Signature for terms \"%s\" not valid on contract %s", UserPost.Signature.Terms, ethereumAddress)
+			message := fmt.Sprintf("Signature for terms \"%s\" not valid on contract %s", request.Signature.Terms, ethereumAddress)
 			logs.Info(message)
 			err := ValidationError{Message: message, Key: "address"}
 			controller.Data["json"] = &err
