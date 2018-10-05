@@ -1,4 +1,4 @@
-FROM golang:1.10-alpine as builder
+FROM golang:1.11.1-alpine as builder
 
 RUN apk add --update --no-cache git gcc musl-dev linux-headers make
 
@@ -25,8 +25,8 @@ RUN cp -r \
   "${GOPATH}/src/github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1" \
   "${APP_DIR}/vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/"
 
-RUN go get
 ADD . ${APP_DIR}
+RUN go get
 
 # Compile files
 RUN cd ${APP_DIR} && $GOPATH/bin/bee generate docs && ONLY_COMPILE=true go run main.go && go build
