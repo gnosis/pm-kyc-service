@@ -144,13 +144,12 @@ func (controller *UserController) Post() {
 
 	if calculatedTermsHash != request.Signature.TermsHash {
 		message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
-		err := ValidationError{Message: , Key: "terms"}
+		err := ValidationError{Message: message, Key: "terms"}
 		controller.Data["json"] = &err
 		controller.Ctx.Output.SetStatus(400)
 		controller.ServeJSON()
 		return
 	}
-
 
 	// Check eth account has balance
 	ethereumRPCURL := beego.AppConfig.String("ethereumRPCURL")
