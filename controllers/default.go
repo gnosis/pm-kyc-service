@@ -115,11 +115,13 @@ func (controller *UserController) Post() {
 	// We don't validate if it cointains strange characters
 	valid.Required(request.Name, "name")
 	valid.Required(request.LastName, "last name")
-
 	valid.Required(request.Signature.TermsHash, "terms hash")
+	valid.Required(request.Signature.Terms, "terms")
+
 	if len(request.Signature.TermsHash) > 2 && request.Signature.TermsHash[:2] == "0x" {
 		request.Signature.TermsHash = request.Signature.TermsHash[2:]
 	}
+
 	valid.Length(request.Signature.TermsHash, 64, "terms hash")
 	valid.Required(request.Signature.R, "r")
 	valid.Numeric(request.Signature.R, "r")
@@ -137,6 +139,18 @@ func (controller *UserController) Post() {
 		controller.ServeJSON()
 		return
 	}
+
+	calculatedTermsHash := hex.EncodeToString(crypto.Keccak256(request.Signature.Terms))
+
+	if calculatedTermsHash != request.Signature.TermsHash {
+		message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
+		err := ValidationError{Message: , Key: "terms"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(400)
+		controller.ServeJSON()
+		return
+	}
+
 
 	// Check eth account has balance
 	ethereumRPCURL := beego.AppConfig.String("ethereumRPCURL")
@@ -187,7 +201,25 @@ func (controller *UserController) Post() {
 			log.Error("Unable to connect to contract: %s", ethereumAddress)
 		}
 		// TODO Add terms to signature
-		// instance.isValidSignature(nil,terms, nil)
+		valid, err := instance.isValidSignature(nil, []byte(UserPost.Signature.Terms), nil)
+		if err != nil {
+			logs.Error(err)
+			err := ValidationError{Message: "Cannot check if signature is valid on contract", Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(500)
+			controller.ServeJSON()
+			return
+		}
+
+		if !valid {
+			message := fmt.Sprintf("Signature for terms \"%s\" not valid on contract %s", UserPost.Signature.Terms, ethereumAddress)
+			logs.Info(message)
+			err := ValidationError{Message: message, Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(400)
+			controller.ServeJSON()
+			return
+		}
 	} else {
 		signatureBytes, _ := hex.DecodeString(composedSignature)
 
