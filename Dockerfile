@@ -26,7 +26,6 @@ RUN cp -r \
   "${APP_DIR}/vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/"
 
 ADD . ${APP_DIR}
-RUN go get
 
 # Compile files
 RUN cd ${APP_DIR} && $GOPATH/bin/bee generate docs && ONLY_COMPILE=true go run main.go && go build
