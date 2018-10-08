@@ -107,7 +107,9 @@ func (controller *UserController) Post() {
 	valid.Required(request.Name, "name")
 	valid.Required(request.LastName, "last name")
 	valid.Required(request.Signature.TermsHash, "terms hash")
-	valid.Required(request.Signature.Terms, "terms")
+
+	// TODO: Uncomment this when terms is needed
+	// valid.Required(request.Signature.Terms, "terms")
 
 	if len(request.Signature.TermsHash) > 2 && request.Signature.TermsHash[:2] == "0x" {
 		request.Signature.TermsHash = request.Signature.TermsHash[2:]
@@ -131,16 +133,19 @@ func (controller *UserController) Post() {
 		return
 	}
 
-	calculatedTermsHash := hex.EncodeToString(crypto.Keccak256([]byte(request.Signature.Terms)))
+	// TODO Uncomment this when terms is needed
+	/*
+		calculatedTermsHash := hex.EncodeToString(crypto.Keccak256([]byte(request.Signature.Terms)))
 
-	if calculatedTermsHash != request.Signature.TermsHash {
-		message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
-		err := ValidationError{Message: message, Key: "terms"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(400)
-		controller.ServeJSON()
-		return
-	}
+		if calculatedTermsHash != request.Signature.TermsHash {
+			message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
+			err := ValidationError{Message: message, Key: "terms"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(400)
+			controller.ServeJSON()
+			return
+		}
+	*/
 
 	// Check eth account has balance
 	ethereumRPCURL := beego.AppConfig.String("ethereumRPCURL")
@@ -190,7 +195,6 @@ func (controller *UserController) Post() {
 		if err != nil {
 			logs.Error("Unable to connect to contract: %s", ethereumAddress)
 		}
-		// TODO Add terms to signature
 		valid, err := instance.IsValidSignature(nil, []byte(request.Signature.Terms), nil)
 		if err != nil {
 			logs.Error(err)
