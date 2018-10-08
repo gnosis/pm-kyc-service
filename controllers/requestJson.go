@@ -29,6 +29,7 @@ type UserController struct {
 }
 
 type UserSignupSignature struct {
+	Terms     string `json:"terms"`
 	TermsHash string `json:"termsHash"`
 	R         string `json:"r"`
 	S         string `json:"s"`

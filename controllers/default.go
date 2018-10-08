@@ -12,9 +12,13 @@ import (
 	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gnosis/pm-kyc-service/contracts"
 	"github.com/gnosis/pm-kyc-service/models"
+	"github.com/onrik/ethrpc"
 )
 
 // @Title Get User
@@ -92,7 +96,8 @@ func (controller *UserController) Post() {
 	}
 
 	// Validate address format and checksum
-	validChecksum := isValidChecksum(controller.Ctx.Input.Param(":address"))
+	ethereumAddress := controller.Ctx.Input.Param(":address")
+	validChecksum := isValidChecksum(ethereumAddress)
 	if !validChecksum {
 		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
 		controller.Data["json"] = &err
@@ -109,11 +114,13 @@ func (controller *UserController) Post() {
 	// We don't validate if it cointains strange characters
 	valid.Required(request.Name, "name")
 	valid.Required(request.LastName, "last name")
-
 	valid.Required(request.Signature.TermsHash, "terms hash")
+	valid.Required(request.Signature.Terms, "terms")
+
 	if len(request.Signature.TermsHash) > 2 && request.Signature.TermsHash[:2] == "0x" {
 		request.Signature.TermsHash = request.Signature.TermsHash[2:]
 	}
+
 	valid.Length(request.Signature.TermsHash, 64, "terms hash")
 	valid.Required(request.Signature.R, "r")
 	valid.Numeric(request.Signature.R, "r")
@@ -132,50 +139,118 @@ func (controller *UserController) Post() {
 		return
 	}
 
-	// Recover address based con signature and terms hash
+	calculatedTermsHash := hex.EncodeToString(crypto.Keccak256([]byte(request.Signature.Terms)))
+
+	if calculatedTermsHash != request.Signature.TermsHash {
+		message := fmt.Sprintf("Terms calculated hash %s mismatch with termsHash %s", calculatedTermsHash, request.Signature.TermsHash)
+		err := ValidationError{Message: message, Key: "terms"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(400)
+		controller.ServeJSON()
+		return
+	}
+
+	// Check eth account has balance
+	ethereumRPCURL := beego.AppConfig.String("ethereumRPCURL")
+	rpc := ethrpc.NewEthRPC(ethereumRPCURL)
+	logs.Info("ETH RPC Connection %s", ethereumRPCURL)
+	balance, err := rpc.EthGetBalance("0x"+ethereumAddress, "latest")
+	if err != nil {
+		logs.Error(err)
+		err := ValidationError{Message: "Error recovering balance from address", Key: "address"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(500)
+		controller.ServeJSON()
+		return
+	}
+
+	minimumBalanceWei, _ := (new(big.Int)).SetString(beego.AppConfig.String("minimumBalanceWei"), 10)
+
+	if balance.Cmp(minimumBalanceWei) == -1 {
+		message := fmt.Sprintf("Balance for account %s should be at least %s wei and is %s wei", ethereumAddress, minimumBalanceWei.String(), balance.String())
+		err := ValidationError{Message: message, Key: "address"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(500)
+		controller.ServeJSON()
+		return
+	}
+
+	// Recover address based on signature and terms hash
 	termsHash, err1 := hex.DecodeString(request.Signature.TermsHash)
 
 	rInt, _ := (new(big.Int)).SetString(request.Signature.R, 10)
-
 	sInt, _ := (new(big.Int)).SetString(request.Signature.S, 10)
 	vInt, _ := strconv.Atoi(request.Signature.V)
 
+	requestAddress := strings.ToLower(ethereumAddress)
 	logs.Info("Signature", rInt, sInt, vInt)
 	composedSignature := fmt.Sprintf("%064x%064x%02x", rInt, sInt, vInt-27)
 	logs.Info("Composed signature (hex) ", composedSignature)
 
-	signatureBytes, _ := hex.DecodeString(composedSignature)
+	if vInt == 1 {
+		//Contract signature
+		contractAddress := common.HexToAddress(ethereumAddress)
+		client, err := ethclient.Dial(ethereumRPCURL)
+		if err != nil {
+			logs.Error("Unable to connect to ethereum network: %v", err)
+		}
+		instance, err := contracts.NewISignatureValidator(contractAddress, client)
+		if err != nil {
+			logs.Error("Unable to connect to contract: %s", ethereumAddress)
+		}
+		// TODO Add terms to signature
+		valid, err := instance.IsValidSignature(nil, []byte(request.Signature.Terms), nil)
+		if err != nil {
+			logs.Error(err)
+			err := ValidationError{Message: "Cannot check if signature is valid on contract", Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(500)
+			controller.ServeJSON()
+			return
+		}
 
-	pubKey, err3 := secp256k1.RecoverPubkey(
-		termsHash,
-		signatureBytes,
-	)
+		if !valid {
+			message := fmt.Sprintf("Signature for terms \"%s\" not valid on contract %s", request.Signature.Terms, ethereumAddress)
+			logs.Info(message)
+			err := ValidationError{Message: message, Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(400)
+			controller.ServeJSON()
+			return
+		}
+	} else {
+		signatureBytes, _ := hex.DecodeString(composedSignature)
 
-	if err1 != nil {
-		logs.Warn(err1.Error())
-	}
-	if err3 != nil {
-		logs.Warn(err3.Error())
-	}
-	logs.Info("pubkey", hex.EncodeToString(pubKey))
-	recoveredAddress := hex.EncodeToString(crypto.Keccak256(pubKey[1:])[12:])
-	logs.Info(recoveredAddress)
+		pubKey, err3 := secp256k1.RecoverPubkey(
+			termsHash,
+			signatureBytes,
+		)
 
-	// Recovered address should be the same than the one used in the reqURL
-	requestAddress := strings.ToLower(controller.Ctx.Input.Param(":address"))
+		if err1 != nil {
+			logs.Warn(err1.Error())
+		}
+		if err3 != nil {
+			logs.Warn(err3.Error())
+		}
+		logs.Info("pubkey", hex.EncodeToString(pubKey))
+		recoveredAddress := hex.EncodeToString(crypto.Keccak256(pubKey[1:])[12:])
+		logs.Info(recoveredAddress)
 
-	if requestAddress != recoveredAddress {
-		err := ValidationError{Message: "Recovered address missmatch", Key: "address"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(401)
-		controller.ServeJSON()
-		return
+		// Recovered address should be the same than the one used in the reqURL
+		if requestAddress != recoveredAddress {
+			message := fmt.Sprintf("Recovered address is %s: missmatch", recoveredAddress)
+			err := ValidationError{Message: message, Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(401)
+			controller.ServeJSON()
+			return
+		}
 	}
 
 	// Check if user already exists
 	o := orm.NewOrm()
 
-	user := models.OnfidoUser{EthereumAddress: recoveredAddress}
+	user := models.OnfidoUser{EthereumAddress: requestAddress}
 
 	errRecover := o.Read(&user)
 
@@ -325,10 +400,10 @@ func (controller *UserController) WebhookPost() {
 	onfidoCheck := models.OnfidoCheck{CheckId: request.Payload.Object.Id}
 
 	if o.Read(&onfidoCheck) == nil {
-		user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
-		o.Read(&user)
 		// Load Related is not working
 		// o.LoadRelated(&onfidoCheck, "User")
+		user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
+		o.Read(&user)
 		onfidoAPICheck := GetOnfidoCheck(user.ApplicantId, onfidoCheck.CheckId)
 		logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
 		onfidoCheck.IsVerified = true
@@ -336,8 +411,52 @@ func (controller *UserController) WebhookPost() {
 		o.Update(&onfidoCheck, "IsVerified", "IsClear")
 		controller.Ctx.Output.SetStatus(200)
 		return
-	} else {
+	}
+	controller.Ctx.Output.SetStatus(404)
+	return
+}
+
+// @Title Mark user as approved, testing purposes only
+// @Description Mark user as approved. It's GET to allow not technical people to trigger it
+// @Success 200
+// @Failure 400 Malformed request
+// @router /users/0x:address([a-fA-F0-9]+) [get]
+func (controller *UserController) ApproveUser() {
+	manualUserApproval := beego.AppConfig.DefaultBool("manualUserApproval", false)
+
+	if !manualUserApproval {
+		err := ValidationError{Message: "Manual user approval not enabled", Key: "manualUserApproval"}
+		controller.Data["json"] = &err
+		controller.Ctx.Output.SetStatus(403)
+		controller.ServeJSON()
+		return
+	}
+
+	// Validate address format and checksum
+	userAddress := controller.Ctx.Input.Param(":address")
+
+	// Check if user exists
+	o := orm.NewOrm()
+
+	logs.Info("Getting user with address ", userAddress)
+	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
+	err := o.Read(&user)
+
+	if err == nil {
+		onfidoCheck := user.OnfidoCheck
+		onfidoCheck.IsVerified = true
+		onfidoCheck.IsClear = true
+		o.Update(&onfidoCheck, "IsVerified", "IsClear")
+		userStatus := UserStatus{Status: "User Verified"}
+		controller.Data["json"] = &userStatus
+		controller.Ctx.Output.SetStatus(200)
+		controller.ServeJSON()
+		return
+	} else if err == orm.ErrNoRows {
 		controller.Ctx.Output.SetStatus(404)
+		return
+	} else {
+		controller.Abort("500")
 		return
 	}
 }
