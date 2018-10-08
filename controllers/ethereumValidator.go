@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -31,5 +32,20 @@ func isValidChecksum(s string) bool {
 		}
 	}
 
+	return true
+}
+
+func controllerIsValidChecksum(controller *UserController, address string) bool {
+	ethereumChecksumedAddresses := beego.AppConfig.DefaultBool("ethereumChecksumedAddresses", false)
+	if ethereumChecksumedAddresses {
+		// Validate address format and checksum
+		if !isValidChecksum(address) {
+			err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
+			controller.Data["json"] = &err
+			controller.Ctx.Output.SetStatus(400)
+			controller.ServeJSON()
+			return false
+		}
+	}
 	return true
 }

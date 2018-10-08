@@ -28,16 +28,12 @@ import (
 // @router /users/0x:address([a-fA-F0-9]+) [get]
 func (controller *UserController) Get() {
 
-	// Validate address format and checksum
 	userAddress := controller.Ctx.Input.Param(":address")
-	validChecksum := isValidChecksum(userAddress)
-	if !validChecksum {
-		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(400)
-		controller.ServeJSON()
+
+	if !controllerIsValidChecksum(controller, userAddress) {
 		return
 	}
+
 	// Check if user exists
 	o := orm.NewOrm()
 
@@ -84,6 +80,13 @@ func (controller *UserController) Get() {
 // @Failure 400 Malformed request
 // @router /users/0x:address([a-fA-F0-9]+) [post]
 func (controller *UserController) Post() {
+
+	ethereumAddress := controller.Ctx.Input.Param(":address")
+
+	if !controllerIsValidChecksum(controller, ethereumAddress) {
+		return
+	}
+
 	// Beego validator
 	valid := validation.Validation{}
 
@@ -93,17 +96,6 @@ func (controller *UserController) Post() {
 	err := json.Unmarshal(controller.Ctx.Input.RequestBody, &request)
 	if err != nil {
 		logs.Warn(err)
-	}
-
-	// Validate address format and checksum
-	ethereumAddress := controller.Ctx.Input.Param(":address")
-	validChecksum := isValidChecksum(ethereumAddress)
-	if !validChecksum {
-		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(400)
-		controller.ServeJSON()
-		return
 	}
 
 	// User doesn't exist, so we validate all params are compliant with the domain
@@ -300,16 +292,12 @@ func (controller *UserController) Post() {
 // @router /users/0x:address([a-fA-F0-9]+) [put]
 func (controller *UserController) Put() {
 
-	// Validate address format and checksum
 	userAddress := controller.Ctx.Input.Param(":address")
-	validChecksum := isValidChecksum(userAddress)
-	if !validChecksum {
-		err := ValidationError{Message: "Invalid Checksum Address", Key: "address"}
-		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(400)
-		controller.ServeJSON()
+
+	if !controllerIsValidChecksum(controller, userAddress) {
 		return
 	}
+
 	// Check if user exists
 	o := orm.NewOrm()
 
@@ -451,7 +439,7 @@ func (controller *UserController) ApproveUser() {
 			logs.Info("OnfidoCheck not found, creating")
 			onfidoCheckModel := models.OnfidoCheck{User: &user, CheckId: "", IsVerified: true, IsClear: true}
 			o.Insert(&onfidoCheckModel)
-			logs.Info("Created Onfido check to %v", onfidoCheck)
+			logs.Info("Created Onfido check to %v", onfidoCheckModel)
 		} else {
 			logs.Info("Got OnfidoCheck %v", onfidoCheck)
 			onfidoCheck.IsVerified = true
