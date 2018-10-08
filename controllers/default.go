@@ -420,7 +420,7 @@ func (controller *UserController) WebhookPost() {
 // @Description Mark user as approved. It's GET to allow not technical people to trigger it
 // @Success 200
 // @Failure 400 Malformed request
-// @router /users/0x:address([a-fA-F0-9]+) [get]
+// @router /users/approval/0x:address([a-fA-F0-9]+) [get]
 func (controller *UserController) ApproveUser() {
 	manualUserApproval := beego.AppConfig.DefaultBool("manualUserApproval", false)
 
