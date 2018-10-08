@@ -446,11 +446,19 @@ func (controller *UserController) ApproveUser() {
 		logs.Info("Found user. Loading related OnfidoCheck")
 		o.LoadRelated(&user, "OnfidoCheck")
 		onfidoCheck := user.OnfidoCheck
-		logs.Info("Got OnfidoCheck %v", onfidoCheck)
-		onfidoCheck.IsVerified = true
-		onfidoCheck.IsClear = true
-		o.Update(onfidoCheck, "IsVerified", "IsClear")
-		logs.Info("Updated Onfido check to %v", onfidoCheck)
+		if onfidoCheck == nil {
+			// Create OnfidoCheck
+			logs.Info("OnfidoCheck not found, creating")
+			onfidoCheckModel := models.OnfidoCheck{User: &user, CheckId: "", IsVerified: true, IsClear: true}
+			o.Insert(&onfidoCheckModel)
+			logs.Info("Created Onfido check to %v", onfidoCheck)
+		} else {
+			logs.Info("Got OnfidoCheck %v", onfidoCheck)
+			onfidoCheck.IsVerified = true
+			onfidoCheck.IsClear = true
+			o.Update(onfidoCheck, "IsVerified", "IsClear")
+			logs.Info("Updated Onfido check to %v", onfidoCheck)
+		}
 		userStatus := UserStatus{Status: "User Verified"}
 		controller.Data["json"] = &userStatus
 		controller.Ctx.Output.SetStatus(200)
