@@ -441,13 +441,16 @@ func (controller *UserController) ApproveUser() {
 	logs.Info("Getting user with address ", userAddress)
 	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
 	err := o.Read(&user)
-	o.LoadRelated(&user, "OnfidoCheck")
 
 	if err == nil {
+		logs.Info("Found user with address. Loading related OnfidoCheck")
+		o.LoadRelated(&user, "OnfidoCheck")
 		onfidoCheck := user.OnfidoCheck
+		logs.Info("Got OnfidoCheck %v", onfidoCheck)
 		onfidoCheck.IsVerified = true
 		onfidoCheck.IsClear = true
 		o.Update(&onfidoCheck, "IsVerified", "IsClear")
+		logs.Info("Updated Onfido check to %v", onfidoCheck)
 		userStatus := UserStatus{Status: "User Verified"}
 		controller.Data["json"] = &userStatus
 		controller.Ctx.Output.SetStatus(200)
