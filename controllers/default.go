@@ -441,6 +441,7 @@ func (controller *UserController) ApproveUser() {
 	logs.Info("Getting user with address ", userAddress)
 	user := models.OnfidoUser{EthereumAddress: strings.ToLower(userAddress)}
 	err := o.Read(&user)
+	o.LoadRelated(&user, "OnfidoCheck")
 
 	if err == nil {
 		onfidoCheck := user.OnfidoCheck
