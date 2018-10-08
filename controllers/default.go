@@ -443,13 +443,13 @@ func (controller *UserController) ApproveUser() {
 	err := o.Read(&user)
 
 	if err == nil {
-		logs.Info("Found user with address. Loading related OnfidoCheck")
+		logs.Info("Found user. Loading related OnfidoCheck")
 		o.LoadRelated(&user, "OnfidoCheck")
 		onfidoCheck := user.OnfidoCheck
 		logs.Info("Got OnfidoCheck %v", onfidoCheck)
 		onfidoCheck.IsVerified = true
 		onfidoCheck.IsClear = true
-		o.Update(&onfidoCheck, "IsVerified", "IsClear")
+		o.Update(onfidoCheck, "IsVerified", "IsClear")
 		logs.Info("Updated Onfido check to %v", onfidoCheck)
 		userStatus := UserStatus{Status: "User Verified"}
 		controller.Data["json"] = &userStatus
