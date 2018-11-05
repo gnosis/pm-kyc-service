@@ -108,4 +108,6 @@ type OnfidoObject struct {
 	Href        string `json:"href"`
 	Id          string `json:"id"`
 	Status      string `json:"status"`
+	Action      string `json:"action"`
+	Resource    string `json:"action"`
 }

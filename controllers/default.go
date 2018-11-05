@@ -167,7 +167,7 @@ func (controller *UserController) Post() {
 		message := fmt.Sprintf("Balance for account %s should be at least %s wei and is %s wei", ethereumAddress, minimumBalanceWei.String(), balance.String())
 		err := ValidationError{Message: message, Key: "address"}
 		controller.Data["json"] = &err
-		controller.Ctx.Output.SetStatus(500)
+		controller.Ctx.Output.SetStatus(403)
 		controller.ServeJSON()
 		return
 	}
@@ -381,7 +381,7 @@ func (controller *UserController) WebhookPost() {
 	}
 
 	if request.IsReportCompleted() == false {
-		logs.Warn("Request not matching action. Payload action is", request.Payload.Action)
+		logs.Warn("Request not expected, user already verified and clear. Payload action is", request.Payload.Action)
 		controller.Ctx.Output.SetStatus(200)
 		return
 	}
@@ -391,17 +391,38 @@ func (controller *UserController) WebhookPost() {
 
 	onfidoCheck := models.OnfidoCheck{CheckId: request.Payload.Object.Id}
 
-	if o.Read(&onfidoCheck) == nil {
-		// Load Related is not working
-		// o.LoadRelated(&onfidoCheck, "User")
-		user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
-		o.Read(&user)
-		onfidoAPICheck := GetOnfidoCheck(user.ApplicantId, onfidoCheck.CheckId)
-		logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
-		onfidoCheck.IsVerified = true
-		onfidoCheck.IsClear = onfidoAPICheck.IsClear()
-		o.Update(&onfidoCheck, "IsVerified", "IsClear")
-		controller.Ctx.Output.SetStatus(200)
+	if request.Payload.Action == "check.started" {
+		if o.Read(&onfidoCheck) == nil {
+			// Load Related is not working
+			// o.LoadRelated(&onfidoCheck, "User")
+			user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
+			o.Read(&user)
+			onfidoAPICheck := GetOnfidoCheck(user.ApplicantId, onfidoCheck.CheckId)
+			logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
+			onfidoCheck.IsVerified = true
+			onfidoCheck.IsClear = onfidoAPICheck.IsClear()
+			o.Update(&onfidoCheck, "IsVerified", "IsClear")
+			controller.Ctx.Output.SetStatus(200)
+			return
+		}
+	}
+	else if request.Payload.Action == "check.completed"{
+		if o.Read(&onfidoCheck) == nil {
+			user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
+			o.Read(&user)
+			onfidoAPICheck := GetOnfidoCheck(user.ApplicantId, onfidoCheck.CheckId)
+			logs.Info("Onfido report completed for id", request.Payload.Object.Id, "with result", onfidoAPICheck.Result)
+			onfidoCheck.IsVerified = true
+			onfidoCheck.IsClear = onfidoAPICheck.IsClear()
+			o.Update(&onfidoCheck, "IsVerified", "IsClear")
+			controller.Ctx.Output.SetStatus(200)
+			return
+		}
+	}
+	else {
+		// We don't control more states, so we just print it in the logs
+		logs.Warn("Request not matching action. Payload action is", request.Payload.Action)
+		controller.Ctx.Output.SetStatus(204)
 		return
 	}
 	controller.Ctx.Output.SetStatus(404)
