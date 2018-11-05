@@ -405,8 +405,7 @@ func (controller *UserController) WebhookPost() {
 			controller.Ctx.Output.SetStatus(200)
 			return
 		}
-	}
-	else if request.Payload.Action == "check.completed"{
+	} else if request.Payload.Action == "check.completed" {
 		if o.Read(&onfidoCheck) == nil {
 			user := models.OnfidoUser{EthereumAddress: onfidoCheck.User.EthereumAddress}
 			o.Read(&user)
@@ -418,8 +417,7 @@ func (controller *UserController) WebhookPost() {
 			controller.Ctx.Output.SetStatus(200)
 			return
 		}
-	}
-	else {
+	} else {
 		// We don't control more states, so we just print it in the logs
 		logs.Warn("Request not matching action. Payload action is", request.Payload.Action)
 		controller.Ctx.Output.SetStatus(204)
