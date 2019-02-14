@@ -59,6 +59,8 @@ func CreateOnfidoCheck(applicantId string) *OnfidoCheck {
 	form.Add("reports[][name]", "document")
 	form.Add("reports[][name]", "facial_similarity")
 	form.Add("reports[][name]", "watchlist")
+	form.Add("reports[][variant]", "full")
+
 
 	req, err := http.NewRequest("POST", reqURL, strings.NewReader(form.Encode()))
 	req.Header.Set("Authorization", "Token token="+beego.AppConfig.String("apiToken"))
